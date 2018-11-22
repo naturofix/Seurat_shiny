@@ -1,11 +1,20 @@
 library(Seurat)
 library(dplyr)
 library(shiny)
+options(shiny.maxRequestSize=3000*1024^2) 
+
+
 # Load the PBMC dataset
 sysinf <- Sys.info()
 os <- sysinf['sysname']
 os = 'Darwin'
-setwd('/srv/shiny-server/sample-apps/Seural_shiny/')
+#setwd('/srv/shiny-server/sample-apps/Seural_shiny/')
+
+
+data_list = list.files('data/')
+datasets = c('immune_hsa','immune_mmu')
+dataset_list = list('immune_hsa' = 'data/immune_hsa/outs/filtered_gene_bc_matrices_mex/GRCh38/',
+                'immune_mmu' = 'data/immune_mmu/outs/filtered_gene_bc_matrices_mex/mm10/')
 
 #options(rsconnect.http = "curl")
 output_dir = '../output/'
@@ -13,18 +22,19 @@ output_name = 'immune_hsa'
 #output_name = 'immune_mmu'
 #pbmc.data <- Read10X(data.dir = '../Seurat/filtered_gene_bc_matrices/hg19/')
 #data <- Read10X(data.dir = 'data/GRCh38/')
-data <- Read10X(data.dir = 'data/aggr_for_Ray/immune_hsa/filtered_gene_bc_matrices_mex/GRCh38/')
+#data <- Read10X(data.dir = 'data/aggr_for_Ray/immune_hsa/filtered_gene_bc_matrices_mex/GRCh38/')
+#data <- Read10X(data.dir = 'data/aggr_for_Ray/immune_mmu/filtered_gene_bc_matrices_mex/mm10/)
 
 #pbmc.data <- Read10X(data.dir = '../data/aggr_for_Ray/immune_mmu/outs/filtered_gene_bc_matrices_mex/mm10/')
 
 
 
 # Examine the memory savings between regular and sparse matrices
-dense.size <- object.size(x = as.matrix(x = data))
-dense.size
-sparse.size <- object.size(x = data)
-sparse.size
-dense.size / sparse.size
+#dense.size <- object.size(x = as.matrix(x = data))
+#dense.size
+#sparse.size <- object.size(x = data)
+#sparse.size
+#dense.size / sparse.size
 
 #values = readRDS('www/values.rds')
 

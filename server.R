@@ -23,72 +23,245 @@ shinyServer(function(input, output) {
     }
   })
   
+  
+  output$select_dataset_ui = renderUI({
+    datasets = values$data_list
+    selectInput('select_dataset','Select Dataset',datasets,datasets[1])
+  })
   observeEvent(input$debug,{
     browser()
   })
   
-  values = reactiveValues()
-  #values_save = readRDS('www/values_save.rds')
+  observeEvent(input$unzip,{
+                withProgress(message = 'untar',{
+                  untar(input$file$datapath, exdir="./data/")
+                  values$data_list = list.files('data/')
+                })
+                 #unzip(input$file$datapath, list = TRUE, exdir = 'data/')
+               })
+  
+  values = reactiveValues(data_list = data_list)
+  values_save = reactiveValues()
+  
+  values_path = reactive({
+    if(!is.null(input$select_dataset)){
+      values_path = paste0('www/values_',input$select_dataset,'.rds')
+      if(!is.null(input$remove_select_gene)){
+        if(input$remove_select_gene != '_'){
+          values_path = paste0(values_path,'_remove_',input$remove_select_gene)
+        }
+      }
+      values_path
+    }
+  })
+  
+  observeEvent(input$reload_data,{
+    withProgress(message = 'Re-CreateSeuratObject',{
+      print(data_path())
+      if(input$remove_select_gene == '_'){
+        data <- Read10X(data.dir = data_path())
+      }else{
+        data = as(as.matrix(data_reduce()),'dgCMatrix')
+      }
+      dim(data)
+      Seurat_data = CreateSeuratObject(raw.data = data, min.cells = input$min.cells, min.genes = input$min.genes, project = input$select_dataset)
+      values$Seurat_data = Seurat_data
+      values_save = reactiveValues()
+      
+      
+    })
+    withProgress(message = paste('saveRDS',dataset_path()),{
+     
+        saveRDS(Seurat_data,dataset_path())
 
-  read_rds = T
-  if(read_rds == T){
-    values_save = readRDS('www/values_save.rds')
-  }else{
-    values_save = reactiveValues()
-    saveRDS(values_save, 'www/values_save.rds')
-  }
-  output$features_plot = renderPlot({
-    print('Create Seurat Object')
-    if(read_rds == T | input$re_load == T){
-      withProgress(message = 'readRDS',{
-        Seurat_data = readRDS('www/Seurat_data.rds')
-        #values_save = readRDS('www/values_save.rds')
+        saveRDS(values_save,values_path())
+    })
+  })
+  
+  output$reduce_dataset_select_ui = renderUI({
+    if(!is.null(input$select_dataset)){
+      rds_list = list.files('www')
+      reduce_list = grep(input$select_dataset,rds_list,value = T)
+      #if(length(reduce_list) > 1){
+        reduce_list_sub = gsub(paste0(input$select_dataset,'.rds'),'',reduce_list)
+        reduce_list_sub = reduce_list_sub[reduce_list_sub != 'values_']
+        reduce_list_sub
+        selectInput('reduce_select','Select sub datasets',c('_',reduce_list_sub,'_'))
+       # }
+    }
+  })
+  
+  dataset_path = reactive({
+    if(!is.null(input$select_dataset)){
+      if(!is.null(input$reduce_select)){
+      
+        dataset_rds_name = 'Seurat_data.rds'
+        if(input$reduce_select !=  '_'){
+          dataset_rds_name = paste0(input$select_dataset,'.rds',input$reduce_select)
+        }else{
+          dataset_rds_name = paste0(input$select_dataset,'.rds')
+        }
+        dataset_path = paste0('www/',dataset_rds_name)
+        dataset_path
+        if(!is.null(input$remove_select_gene)){
+          if(input$remove_select_gene != '_'){
+            dataset_path = paste0(dataset_path,'_remove_',input$remove_select_gene)
+          }
+        }
+        print(dataset_path)
+        dataset_path
+      }
+    }
+  })
+  
+  observeEvent(input$load_data,{
+    
+    dataset_path = dataset_path()
+    file_list = list.files('www')
+    file_list
+    dataset_rds_name = 'Seurat_data.rds'
+    if(input$reduce_select !=  '_'){
+      dataset_rds_name = paste0(input$select_dataset,'.rds',input$reduce_select)
+    }else{
+      dataset_rds_name = paste0(input$select_dataset,'.rds')
+    }
+    if(dataset_rds_name %in% file_list){
+      withProgress(message = paste('readRDS',dataset_path()),{
+        values$Seurat_data = readRDS(dataset_path)
+      })
+    }else{      
+      withProgress(message = 'CreateSeuratObject',{
+        
+          data_dir = dataset_list[[input$select_dataset]]
+          print(data_dir)
+          data <- Read10X(data.dir = data_dir)
+          Seurat_data = CreateSeuratObject(raw.data = data_path(), min.cells = input$min.cells, min.genes = input$min.genes, project = "immune_hsa")
+          values$Seurat_data = Seurat_data
+          values_save = reactiveValues()
+        
         
       })
-    }else{
-      print('create')
-      #values_save = reactiveValues()
-      #saveRDS(values_save, 'www/values_save.rds')
-      Seurat_data = CreateSeuratObject(raw.data = data, min.cells = input$min.cells, min.genes = input$min.genes, project = "immune_hsa")
+      withProgress(message = paste('saveRDS',dataset_path()),{
+        saveRDS(Seurat_data,dataset_path)
+        saveRDS(values_save,values_path())
+        
+      })
     }
-    #Seurat_data = CreateSeuratObject(raw.data = data, min.cells = 3, min.genes = 200, project = "immune_hsa")
+    print(paste0('values_',dataset_rds_name))
+    # if(paste0('values_',dataset_rds_name) %in% file_list){
+    #   print('readRDS values')
+    #   withProgress(message = 'readRDS values',{
+    #     values_save = reactiveValues()
+    #     names(values_save)
+    #     values_load = readRDS(values_path())
+    #     names(values_load)
+    #     for(name in names(values_load)){
+    #       print(name)
+    #       values_save[[name]] = values_load[[name]]
+    #     }
+    #   })
+    #   print(names(values_save))
+    # }else{      
+    #   withProgress(message = 'values_saves',{
+    #     values_save = reactiveValues()
+    #     saveRDS(values_save,values_path())
+    #   })
+    # }
+    dataset_path
+    
+  })
+  
+  data_path = reactive({
+    if(!is.null(input$select_dataset)){
+      path_list = list.dirs(paste0('data/',input$select_dataset))
+      mex_path = grep('mex',path_list,value = TRUE)  
+      data_path = paste0(mex_path[nchar(mex_path) == max(nchar(mex_path))],'/')
+      data_path
+    }
+  })
+  output$dataset_text = renderText({
+    dataset_path()
+  })
+  
+  output$data_path_text = renderText({data_path()})
+      
+    
+  #values_save = readRDS('www/values_save.rds')
 
-    mito.genes <- grep(pattern = "^MT-", x = rownames(x = Seurat_data@data), value = TRUE)
-    percent.mito <- Matrix::colSums(Seurat_data@raw.data[mito.genes, ]) / Matrix::colSums(Seurat_data@raw.data)
+  #read_rds = T
+  #if(read_rds == T){
+  #  values_save = readRDS('www/values_save.rds')
+  #}else{
+    #saveRDS(values_save, 'www/values_save.rds')
+  #}
+  output$features_plot = renderPlot({
+    print('features_plot')
+    withProgress(message = paste('readRDS',dataset_path()),{
+      Seurat_data = readRDS(dataset_path())
+    })
+    withProgress(message = 'AddMetaData',{
+      mito.genes <- grep(pattern = "^MT-", x = rownames(x = Seurat_data@data), value = TRUE)
+      percent.mito <- Matrix::colSums(Seurat_data@raw.data[mito.genes, ]) / Matrix::colSums(Seurat_data@raw.data)
 
     # AddMetaData adds columns to object@meta.data, and is a great place to stash QC stats
-    Seurat_data <- AddMetaData(object = Seurat_data, metadata = percent.mito, col.name = "percent.mito")
+      Seurat_data <- AddMetaData(object = Seurat_data, metadata = percent.mito, col.name = "percent.mito")
+    })
+
+    withProgress(message = paste('saveRDS',dataset_path()),{
+      saveRDS(Seurat_data,dataset_path())
+    })
+    
+    withProgress(message = 'VlnPlot',{
       print('feature_plot')
       values$Seurat_data = Seurat_data
-
       VlnPlot(object = Seurat_data, features.plot = c("nGene", "nUMI", "percent.mito"), nCol = 3)
+    })
     })
   #
   #
     output$gene_plot = renderPlot({
       print('gene_plot')
       par(mfrow = c(1, 2))
-      
-      GenePlot(object = values$Seurat_data, gene1 = "nUMI", gene2 = "percent.mito")
+      if("percent.mito" %in% names(values$Seurat_data@meta.data)){
+        GenePlot(object = values$Seurat_data, gene1 = "nUMI", gene2 = "percent.mito")
+      }
       GenePlot(object = values$Seurat_data, gene1 = "nUMI", gene2 = "nGene")
     })
   #
   #
     output$var_plot = renderPlot({
       Seurat_data = values$Seurat_data
-      Seurat_data <- FilterCells(object = Seurat_data, subset.names = c("nGene", "percent.mito"), low.thresholds = c(200, -Inf), high.thresholds = c(2500, 0.05))
-
-
-      Seurat_data <- NormalizeData(object = Seurat_data, normalization.method = "LogNormalize", scale.factor = 1e4)
-
-      Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
+      withProgress(message = 'FilterCells',{
+        Seurat_data <- FilterCells(object = Seurat_data, subset.names = c("nGene"), low.thresholds = c(200), high.thresholds = c(2500))
+      })
+      output$FilterCells_text = renderText({
+        print("Seurat_data <- FilterCells(object = Seurat_data, subset.names = c('nGene'), low.thresholds = c(200), high.thresholds = c(2500))")
+        
+      })
+      withProgress(message = 'NormalizeData',{
+        Seurat_data <- NormalizeData(object = Seurat_data, normalization.method = "LogNormalize", scale.factor = 1e4)
+      })
+      output$NormalizeData_text = renderText({
+        print("Seurat_data <- NormalizeData(object = Seurat_data, normalization.method = 'LogNormalize', scale.factor = 1e4)")
+      })
+      withProgress(message = 'FindVariableGenes',{
+        Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
+      })
+      output$FindVariableGenes_text = renderText({
+        print("Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)")
+      })
+      
       print('var_plot')
       if (os == 'Darwin'){
-        saveRDS(Seurat_data,'www/Seurat_data.rds')
+        withProgress(message = paste('saveRDS',dataset_path()),{
+          saveRDS(Seurat_data,dataset_path())
+        })
       }
     
-      values$Seurat_data_norm <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
-
+      withProgress(message = 'FindVariableGenes',{
+        Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
+      })
+      
     })
 
   # output$features_plot = renderPlot({
@@ -143,11 +316,19 @@ shinyServer(function(input, output) {
   # 
   # 
   observeEvent(input$run_scaling,{
+    if(is.null(values$Seurat_data_norm)){
+      withProgress(message = paste('readRDS',dataset_path()),{
+        print(dataset_path())
+        data = readRDS(dataset_path())
+      })
+    }else{
+      data = values$Seurat_data_norm
+    }
     withProgress(message = 'running scaling',{
-    Seurat_data <- ScaleData(object = values$Seurat_data_norm, vars.to.regress = c("nUMI", "percent.mito"))
-    
+    Seurat_data <- ScaleData(object = data, vars.to.regress = c("nUMI"))
+
     if (os == 'Darwin'){
-      saveRDS(Seurat_data,'www/Seurat_data.rds')
+      saveRDS(Seurat_data,dataset_path())
     }
     
     values$Seurat_data_scale = Seurat_data
@@ -155,6 +336,10 @@ shinyServer(function(input, output) {
   })
   # 
   # 
+  output$ScaleData_text = renderText({
+    print("Seurat_data <- ScaleData(object = values$Seurat_data_norm, vars.to.regress = c('nUMI', 'percent.mito'))")
+  })
+  
   output$scaling_done_text = renderText({
     if(!is.null(values$Seurat_data_scale)){
       print('done')
@@ -162,24 +347,95 @@ shinyServer(function(input, output) {
   })
   #output$pca_1 = renderText({
   #  print('pca_1')
+  
+  data_df = reactive({
+    print(data_path())
+    data <- Read10X(data.dir = data_path())
+    
+    df = as.data.frame(as.matrix(data))
+    dim(df)
+    
+    
+    #if(!is.null(values$Seurat_data_scale)){
+    #  data = values$Seurat_data_scale
+    #}else{
+    #  withProgress(message = paste('readRDS',dataset_path()),{
+    #    data = readRDS(dataset_path())
+    #  })
+    #}
+    df = as.data.frame(as.matrix(data))
+    df
+  })
+  
+  output$remove_select_gene_ui = renderUI({
+    selectInput('remove_select_gene','Select Marker to Remove',c('_',rownames(data_df())),'FSCN1')
+  })
+  
+  output$remove_hist = renderPlot({
+    if(!is.null(input$remove_select_gene)){
+      df = data_df()[input$remove_select_gene,]
+      #str(df)
+      df_l = as.data.frame(t(df))
+      ggplot(df_l) +
+        geom_histogram(aes_string(input$remove_select_gene))
+    }
+  })
+  
+  data_reduce = reactive({
+    if(!is.null(input$remove_select_gene)){
+      
+      df = data_df()
+      df_r = df[,as.numeric(df[input$remove_select_gene,]) < input$remove_threshold]
+      #dim(df_r)
+      
+      df_r
+    }
+  })
+  
+  observeEvent(input$run_reduce,{
+    withProgress(message = 'reduce',{
+    data = readRDS(dataset_path())
+    #str(data)
+    #str(data@data)
+    df_m = as(as.matrix(data_reduce()),'dgCMatrix')
+    #str(df_m)
+    data@data = df_m
+    values$reduced_data = data
+    withProgress(message = paste('saveRDS',dataset_path()),{
+      saveRDS(data,paste(dataset_path(),'_reduced'))
+      saveRDS(data_df(),paste(dataset_path(),'_full'))
+    })
+    })
+    
+  })
+  
+  output$text_remaining = renderText({
+    print(paste('Total Number of cells =',dim(data_df())[2],'<br>Remaining number of cells = ',dim(data_reduce())[2]))
+  })
+  
+  
+  
   observeEvent(input$run_pca,{
     print('pca_1')
-      if(!is.null(values$Seurat_data_scale)){
-        data = values$Seurat_data_scale
-      }else{
-        withProgress(message = 'readRDS',{
-          data = readRDS('www/Seurat_data.rds')
-        })
-      }
+
+        if(!is.null(values$Seurat_data_scale)){
+          data = values$Seurat_data_scale
+        }else{
+          withProgress(message = paste('readRDS',dataset_path()),{
+            print(dataset_path())
+            data = readRDS(dataset_path())
+          })
+        }
+
     withProgress(message = 'RunPCA',{
       
       Seurat_data = RunPCA(object = data, pc.genes = data@var.genes, do.print = TRUE, pcs.print = 1:5, genes.print = 5)
     })
       values$Seurat_data_pca_1 <- Seurat_data
-      withProgress(message = 'saveRDS',{
+      withProgress(message = paste('saveRDS',dataset_path()),{
         
         if (os == 'Darwin'){
-          saveRDS(Seurat_data,'www/Seurat_data.rds')
+          saveRDS(Seurat_data,dataset_path())
         }
       })
       
@@ -218,9 +474,9 @@ shinyServer(function(input, output) {
   
   observeEvent(input$ProjectPCA,{
     if(is.null(values$Seurat_data_pca_1)){
-      withProgress(message = 'readRDS',{
+      withProgress(message = paste('readRDS',dataset_path()),{
         
-        data = readRDS('www/Seurat_data.rds')
+        data = readRDS(dataset_path())
       })
     }else{
       data = values$Seurat_data_pca_1
@@ -234,9 +490,9 @@ shinyServer(function(input, output) {
       Seurat_data <- ProjectPCA(object = data, do.print = FALSE)
     })
     values$Seurat_data_ProjectPCA = Seurat_data
-    withProgress(message = 'saveRDS',{
+    withProgress(message = paste('saveRDS',dataset_path()),{
       if (os == 'Darwin'){
-        saveRDS(Seurat_data,'www/Seurat_data.rds')
+        saveRDS(Seurat_data,dataset_path())
       }
     })
       
@@ -258,9 +514,9 @@ shinyServer(function(input, output) {
   observeEvent(input$Jacksaw,{
     print('JackStraw')
     if(is.null(values$Seurat_data_ProjectPCA)){
-      withProgress(message = 'readRDS',{
+      withProgress(message = paste('readRDS',dataset_path()),{
         
-        data = readRDS('www/Seurat_data.rds')
+        data = readRDS(dataset_path())
       })
     }else{
       data = values$Seurat_data_pca_1
@@ -269,10 +525,10 @@ shinyServer(function(input, output) {
       Seurat_data <- JackStraw(object = data, num.replicate = 100, display.progress = FALSE)
     })
     values$Seurat_data_jack = Seurat_data
-    withProgress(message = 'saveRDS',{
-      if (os == 'Darwin'){
-        saveRDS(Seurat_data,'www/Seurat_data.rds')
-      }
+    withProgress(message = paste('saveRDS',dataset_path()),{
+      #if (os == 'Darwin'){
+        saveRDS(Seurat_data,dataset_path())
+      #}
     })
   })
     output$JackStrawPlot = renderPlot({
@@ -291,9 +547,9 @@ shinyServer(function(input, output) {
     observeEvent(input$find_clusters,{
       print('FindClusters')
       if(is.null(values$Seurat_data_jack)){
-        withProgress(message = 'readRDS',{
+        withProgress(message = paste('readRDS',dataset_path()),{
           
-          data = readRDS('www/Seurat_data.rds')
+          data = readRDS(dataset_path())
         })
       }else{
         data = values$Seurat_data_jack
@@ -302,12 +558,21 @@ shinyServer(function(input, output) {
       # but with a different resolution value (see docs for full details)
       withProgress(message = 'FindClusters',{
         
-        Seurat_data <- FindClusters(object = data, reduction.type = "pca", dims.use = 1:10, resolution = 0.6, print.output = 0, save.SNN = TRUE)
+        Seurat_data <- FindClusters(object = data, 
+                                    reduction.type = "pca", 
+                                    dims.use = 1:10, 
+                                    resolution = 0.6, 
+                                    print.output = 0, 
+                                    save.SNN = TRUE,
+                                    force.recalc = TRUE)
       })
       values$Seurat_data_clusters = Seurat_data
-      if (os == 'Darwin'){
-        saveRDS(Seurat_data,'www/Seurat_data.rds')
-      }
+      #if (os == 'Darwin'){
+      withProgress(message = paste('saveRDS',dataset_path()),{
+        
+        saveRDS(Seurat_data,dataset_path())
+      })
+      #}
     })
     
     output$cluster_text = renderText({
@@ -319,8 +584,8 @@ shinyServer(function(input, output) {
     observeEvent(input$run_tsne,{
       print('TSNE')
       if(is.null(values$Seurat_data_clusters)){
-        withProgress(message = 'readRDS',{
-          data = readRDS('www/Seurat_data.rds')
+        withProgress(message = paste('readRDS',dataset_path()),{
+          data = readRDS(dataset_path())
         })
       }else{
         data = values$Seurat_data_clusters
@@ -329,9 +594,12 @@ shinyServer(function(input, output) {
         Seurat_data <- RunTSNE(object = data, dims.use = 1:10)
       })
       values$Seurat_data_tsne = Seurat_data
-      if (os == 'Darwin'){
-        saveRDS(Seurat_data,'www/Seurat_data.rds')
-      }
+      #if (os == 'Darwin'){
+      withProgress(message = paste('saveRDS',dataset_path()),{
+        
+        saveRDS(Seurat_data,dataset_path())
+      })
+      #}
     })
     
     output$TSNEPlot = renderPlot({
@@ -342,31 +610,18 @@ shinyServer(function(input, output) {
     ##### Visualisations ########
     
     plot_data = reactive({
-      withProgress(message = 'readRDS',{
-        data = readRDS('www/Seurat_data.rds')
+      withProgress(message = paste('readRDS',dataset_path()),{
+        
+        data = readRDS(dataset_path())
+                
       })
       
     })
-    output$FindMarkers_text = renderPlot({
-      data = values$Seurat_data_clusters
-      
-      cluster1.markers <- FindMarkers(object = data, ident.1 = 1, min.pct = 0.25)
-      print(x = head(x = cluster1.markers, n = 5))
-      str(cluster1.markers)
-      # find all markers distinguishing cluster 5 from clusters 0 and 3
-      cluster5.markers <- FindMarkers(object = data, ident.1 = 5, ident.2 = c(0,3), min.pct = 0.25)
-      str(cluster5.markers)
-      print(x = head(x = cluster5.markers, n = 5))
-      # find markers for every cluster compared to all remaining cells, report only the positive ones
-      data.markers <- FindAllMarkers(object = data, only.pos = TRUE, min.pct = 0.25, thresh.use = 0.25)
-      data.markers = pbmc.markers
-      data.markers.top_n = data.markers %>% group_by(cluster) %>% top_n(2, avg_logFC)
-      
-      str(data.markers.top_n)
-      
-    })
+
     observeEvent(input$find_single_cluster,{
       data = plot_data()
+      values_save = readRDS(values_path())
+      
       withProgress(message = 'FindMarkers',{
         values_save$cluster.marker <- FindMarkers(object = data, 
                                                   ident.1 = input$single_cluster_number, 
@@ -377,31 +632,19 @@ shinyServer(function(input, output) {
         values_save$cluster.marker$cluster = input$single_cluster_number
       })
       withProgress(message = 'saveRDS values save',{
-        if (os == 'Darwin'){
-          saveRDS(values_save,'www/values_save.rds')
-        }
+        #if (os == 'Darwin'){
+          saveRDS(values_save,values_path())
+        #}
         
       })
     })
     
-    observeEvent(input$find_single_cluster_roc,{
-      withProgress(message = 'readRDS',{
-        data = readRDS('www/Seurat_data.rds')
-      })
-      withProgress(message = 'FindMarkers',{
-        values_save$cluster.marker.roc <- FindMarkers(object = data, ident.1 = 0, thresh.use = 0.25, test.use = "roc", only.pos = TRUE)
-        values_save$cluster.marker.roc$gene = rownames(values$cluster.marker.roc)
-        if (os == 'Darwin'){
-          saveRDS(values_save,'www/values_save.rds')
-        }
-        
-      })
-    })
+
     
     observeEvent(input$find_distinguishing_cluster,{
-      withProgress(message = 'readRDS',{
-        data = readRDS('www/Seurat_data.rds')
-      })
+      data = plot_data()
+      values_save = readRDS(values_path())
+      
       withProgress(message = 'FindMarkers',{
         # find all markers distinguishing cluster 5 from clusters 0 and 3
         values_save$cluster_markers_distinguishing <- FindMarkers(object = data, 
@@ -410,45 +653,46 @@ shinyServer(function(input, output) {
                                                                   min.pct = input$min.pct, 
                                                                   logfc.threshold = input$logfc.threshold)
         values_save$cluster_markers_distinguishing$gene = rownames(values_save$cluster_markers_distinguishing)
-        if (os == 'Darwin'){
-          saveRDS(values_save,'www/values_save.rds')
-        }
+        #if (os == 'Darwin'){
+          saveRDS(values_save,values_path())
+        #}
         
       })
     })
       
     
     observeEvent(input$find_all_clusters,{
-      withProgress(message = 'readRDS',{
-        data = readRDS('www/Seurat_data.rds')
-      })
+      
+     data = plot_data()
+     values_save = readRDS(values_path())
+     
       withProgress(message = 'FindAllMarkers',{
         values_save$data.markers <- FindAllMarkers(object = data, 
                                                    only.pos = TRUE, 
                                                    min.pct = input$min.pct, 
                                                    logfc.threshold = input$logfc.threshold)
-        if (os == 'Darwin'){
-          saveRDS(values_save,'www/values_save.rds')
-        }
+        #if (os == 'Darwin'){
+          saveRDS(values_save,values_path())
+        #}
       })
 
     })
   
     output$single_markers_table = renderDataTable({
+      #values_save = readRDS(values_path())
+      
       if(!is.null(values_save$cluster.marker)){
         values_save$cluster.marker
       }
       
     })
     
-    output$single_markers_table_roc = renderDataTable({
-      if(!is.null(values_save$cluster.marker)){
-        values_save$cluster.marker.roc
-      }
-      
-    })
+
     
     output$distinguish_markers_table = renderDataTable({
+      #values_save = readRDS(values_path())
+      values_save = readRDS(values_path())
+      
       if(!is.null(values_save$cluster_markers_distinguishing)){
         values_save$cluster_markers_distinguishing
       
@@ -457,15 +701,38 @@ shinyServer(function(input, output) {
       
     })
     
-    output$data_markers_table = renderDataTable({
-      if(!is.null(values_save$data.markers)){
-        data.markers.top_n = values_save$data.markers %>% group_by(cluster) %>% top_n(input$clust_num_display, avg_logFC)
+    observeEvent(input$select_dataset,{
+      print('load values_save')
+      #values_load = readRDS(values_path())
+      values_save = reactiveValues()
+
+      values_load = readRDS(values_path())
+      names(values_load)
+      for(name in names(values_load)){
+        print(name)
+        values_save[[name]] = values_load[[name]]
       }
-      
+
     })
+    
+    data_markers_table_top_n = reactive({
+      if(!is.null(input$select_dataset)){
+        values_save = readRDS(values_path())
+        if(!is.null(values_save$data.markers)){
+          data.markers.top_n = values_save$data.markers %>% group_by(cluster) %>% top_n(input$clust_num_display, avg_logFC)
+        }
+      }
+    })
+    
+    output$data_markers_table = renderDataTable({
+      data_markers_table_top_n()
+    })
+      
 
     
     output$plot_select_genes_ui = renderUI({
+      values_save = readRDS(values_path())
+      
       gene_list = values_save$data.markers$gene[1:3]
       gene_list = c("MS4A1", "IGLL1", "JCHAIN","HGB", "HLA-DQA1",
                     "XCL1",'XCL2',
@@ -492,6 +759,8 @@ shinyServer(function(input, output) {
     })
     
     output$doheatmap = renderPlot({
+      values_save = readRDS(values_path())
+      
       # ```{r clusterHeatmap, fig.height=8, fig.width=15, message=FALSE, warning=FALSE}
       values_save$data.markers %>% group_by(cluster) %>% top_n(10, avg_logFC) -> top10
       # # setting slim.col.label to TRUE will print just the cluster IDS instead of every cell name
@@ -499,12 +768,82 @@ shinyServer(function(input, output) {
       # ```
     })
     
+    output$cluster_0_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 0]),collapse = ', ')
+      label
+      textInput('cluster_0','Cluster 0',label)
+    })
+    output$cluster_1_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 1]),collapse = ', ')
+      label
+      textInput('cluster_1','Cluster 1',label)
+    })    
+    
+    output$cluster_2_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 2]),collapse = ', ')
+      label
+      textInput('cluster_2','Cluster 2',label)
+    })    
+    output$cluster_3_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 3]),collapse = ', ')
+      label
+      textInput('cluster_3','Cluster 3',label)
+    })    
+    output$cluster_4_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 4]),collapse = ', ')
+      label
+      textInput('cluster_4','Cluster 4',label)
+    })    
+    output$cluster_5_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 5]),collapse = ', ')
+      label
+      textInput('cluster_5','Cluster 5',label)
+    })    
+    output$cluster_6_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 6]),collapse = ', ')
+      label
+      textInput('cluster_6','Cluster 6',label)
+    })    
+    output$cluster_7_text = renderUI({
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 7]),collapse = ', ')
+      label
+      textInput('cluster_7','Cluster 7',label)
+    })
+    
     output$assign_clusters = renderPlot({
       data = plot_data()
+      current.cluster.ids = c(0,1,2,3,4,5,6,7)
+      length(current.cluster.ids)
+      new.cluster.ids = c(input$cluster_0,input$cluster_1,input$cluster_2,input$cluster_3,input$cluster_4,input$cluster_5,input$cluster_6,input$cluster_7)
+      length(new.cluster.ids)
       #current.cluster.ids <- c(0, 1, 2, 3, 4, 5, 6, 7)
       #new.cluster.ids <- c("CD4 T cells", "CD14+ Monocytes", "B cells", "CD8 T cells", "FCGR3A+ Monocytes", "NK cells", "Dendritic cells", "Megakaryocytes")
-      #data@ident <- plyr::mapvalues(x = data@ident, from = current.cluster.ids, to = new.cluster.ids)
-      TSNEPlot(object = data, do.label = TRUE, pt.size = 0.5)
+      data@ident <- plyr::mapvalues(x = data@ident, from = current.cluster.ids, to = new.cluster.ids)
+      TSNEPlot(object = data, do.label = TRUE, pt.size = 0.5,label.size = 6)
     })
 
 })
