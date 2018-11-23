@@ -45,13 +45,20 @@ shinyServer(function(input, output) {
   
   values_path = reactive({
     if(!is.null(input$select_dataset)){
-      values_path = paste0('www/values_',input$select_dataset,'.rds')
-      if(!is.null(input$remove_select_gene)){
-        if(input$remove_select_gene != '_'){
-          values_path = paste0(values_path,'_remove_',input$remove_select_gene)
+      if(!is.null(input$reduce_select)){
+        if(input$reduce_select !=  '_'){
+          values_path = paste0('www/values_',input$select_dataset,'.rds',input$reduce_select)
+        }else{
+          values_path = paste0('www/values_',input$select_dataset,'.rds')
         }
+        #values_path = paste0('www/values_',input$select_dataset,'.rds')
+        if(!is.null(input$remove_select_gene)){
+          if(input$remove_select_gene != '_'){
+            values_path = paste0(values_path,'_remove_',input$remove_select_gene)
+          }
+        }
+        values_path
       }
-      values_path
     }
   })
   
@@ -84,7 +91,8 @@ shinyServer(function(input, output) {
       reduce_list = grep(input$select_dataset,rds_list,value = T)
       #if(length(reduce_list) > 1){
         reduce_list_sub = gsub(paste0(input$select_dataset,'.rds'),'',reduce_list)
-        reduce_list_sub = reduce_list_sub[reduce_list_sub != 'values_']
+        values_list = grep('values_',reduce_list_sub,value = T)
+        reduce_list_sub = reduce_list_sub[!(reduce_list_sub %in% values_list)]
         reduce_list_sub
         selectInput('reduce_select','Select sub datasets',c('_',reduce_list_sub,'_'))
        # }
@@ -702,15 +710,17 @@ shinyServer(function(input, output) {
     })
     
     observeEvent(input$select_dataset,{
-      print('load values_save')
-      #values_load = readRDS(values_path())
-      values_save = reactiveValues()
-
-      values_load = readRDS(values_path())
-      names(values_load)
-      for(name in names(values_load)){
-        print(name)
-        values_save[[name]] = values_load[[name]]
+      if(!is.null(values_path())){
+        print('load values_save')
+        #values_load = readRDS(values_path())
+        values_save = reactiveValues()
+  
+        values_load = readRDS(values_path())
+        names(values_load)
+        for(name in names(values_load)){
+          print(name)
+          values_save[[name]] = values_load[[name]]
+        }
       }
 
     })
@@ -718,9 +728,11 @@ shinyServer(function(input, output) {
     data_markers_table_top_n = reactive({
       if(!is.null(input$select_dataset)){
         values_save = readRDS(values_path())
+        names(values_save)
         if(!is.null(values_save$data.markers)){
           data.markers.top_n = values_save$data.markers %>% group_by(cluster) %>% top_n(input$clust_num_display, avg_logFC)
-        }
+          data.markers.top_n
+          }
       }
     })
     
@@ -769,81 +781,169 @@ shinyServer(function(input, output) {
     })
     
     output$cluster_0_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 0]),collapse = ', ')
       label
       textInput('cluster_0','Cluster 0',label)
+      }
     })
     output$cluster_1_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 1]),collapse = ', ')
       label
       textInput('cluster_1','Cluster 1',label)
+      }
     })    
     
     output$cluster_2_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 2]),collapse = ', ')
       label
       textInput('cluster_2','Cluster 2',label)
+      }
     })    
     output$cluster_3_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 3]),collapse = ', ')
       label
       textInput('cluster_3','Cluster 3',label)
+      }
     })    
     output$cluster_4_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 4]),collapse = ', ')
       label
       textInput('cluster_4','Cluster 4',label)
+      }
     })    
     output$cluster_5_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 5]),collapse = ', ')
       label
       textInput('cluster_5','Cluster 5',label)
+      }
     })    
     output$cluster_6_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 6]),collapse = ', ')
       label
       textInput('cluster_6','Cluster 6',label)
+      }
     })    
     output$cluster_7_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
       data = data_markers_table_top_n()
       dim(data)
       head(data)
       label = paste(unlist(data$gene[data$cluster == 7]),collapse = ', ')
       label
       textInput('cluster_7','Cluster 7',label)
+      }
     })
     
+    output$cluster_8_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 8]),collapse = ', ')
+      label
+      textInput('cluster_8','Cluster 8',label)
+      }
+    })
+    
+    output$cluster_9_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 9]),collapse = ', ')
+      label
+      textInput('cluster_9','Cluster 9',label)
+      }
+    })
+    
+    output$cluster_10_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 10]),collapse = ', ')
+      label
+      textInput('cluster_10','Cluster 10',label)
+      }
+    })
+    
+    output$cluster_11_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 11]),collapse = ', ')
+      label
+      textInput('cluster_11','Cluster 11',label)
+      }
+    })
+    
+    output$cluster_12_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 12]),collapse = ', ')
+      label
+      textInput('cluster_12','Cluster 12',label)
+      }
+    })
+    
+    output$cluster_13_text = renderUI({
+      if(!is.null(data_markers_table_top_n())){
+      data = data_markers_table_top_n()
+      dim(data)
+      head(data)
+      label = paste(unlist(data$gene[data$cluster == 13]),collapse = ', ')
+      label
+      textInput('cluster_13','Cluster 13',label)
+      }
+    })
+    
+
+    
     output$assign_clusters = renderPlot({
+      if(!is.null(data_markers_table_top_n())){
       data = plot_data()
-      current.cluster.ids = c(0,1,2,3,4,5,6,7)
+      current.cluster.ids = c(0,1,2,3,4,5,6,7,8,9,10,11,12,13)
       length(current.cluster.ids)
-      new.cluster.ids = c(input$cluster_0,input$cluster_1,input$cluster_2,input$cluster_3,input$cluster_4,input$cluster_5,input$cluster_6,input$cluster_7)
+      new.cluster.ids = c(input$cluster_0,input$cluster_1,input$cluster_2,input$cluster_3,input$cluster_4,input$cluster_5,
+                          input$cluster_6,input$cluster_7,input$cluster_8,input$cluster_9,input$cluster_10,input$cluster_11,
+                          input$cluster_12,input$cluster_13)
       length(new.cluster.ids)
       #current.cluster.ids <- c(0, 1, 2, 3, 4, 5, 6, 7)
       #new.cluster.ids <- c("CD4 T cells", "CD14+ Monocytes", "B cells", "CD8 T cells", "FCGR3A+ Monocytes", "NK cells", "Dendritic cells", "Megakaryocytes")
       data@ident <- plyr::mapvalues(x = data@ident, from = current.cluster.ids, to = new.cluster.ids)
       TSNEPlot(object = data, do.label = TRUE, pt.size = 0.5,label.size = 6)
+      }
     })
 
 })
