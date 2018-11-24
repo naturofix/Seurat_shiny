@@ -13,8 +13,8 @@ os = 'Darwin'
 
 data_list = list.files('data/')
 datasets = c('immune_hsa','immune_mmu')
-dataset_list = list('immune_hsa' = 'data/aggr_for_Ray/immune_hsa/filtered_gene_bc_matrices_mex/GRCh38/',
-                'immune_mmu' = 'data/aggr_for_Ray/immune_mmu/filtered_gene_bc_matrices_mex/mm10/')
+dataset_list = list('immune_hsa' = 'data/immune_hsa/outs/filtered_gene_bc_matrices_mex/GRCh38/',
+                    'immune_mmu' = 'data/immune_mmu/outs/filtered_gene_bc_matrices_mex/mm10/')
 
 #options(rsconnect.http = "curl")
 output_dir = '../output/'
@@ -40,7 +40,7 @@ output_name = 'immune_hsa'
 
 
 FindMarkers_test_list = list(
- "Wilcoxon rank sum test (default)" =  "wilcox",
+  "Wilcoxon rank sum test (default)" =  "wilcox",
   "Likelihood-ratio test for single cell gene expression, (McDavid et al., Bioinformatics, 2013)" =  "wilcox",
   "Standard AUC classifier" = "roc",
   "Student's t-test" = "t",
@@ -56,7 +56,7 @@ if(process_data == T){
   print("Seurat data")
   print('read')
   Seurat_data <- CreateSeuratObject(raw.data = data, min.cells = 3, min.genes = 200, project = "immune_hsa")
-
+  
   
   # The number of genes and UMIs (nGene and nUMI) are automatically calculated for every object by Seurat.
   # For non-UMI data, nUMI represents the sum of the non-normalized values within a cell
@@ -68,37 +68,37 @@ if(process_data == T){
   
   # AddMetaData adds columns to object@meta.data, and is a great place to stash QC stats
   Seurat_data <- AddMetaData(object = Seurat_data, metadata = percent.mito, col.name = "percent.mito")
-
+  
   VlnPlot(object = Seurat_data, features.plot = c("nGene", "nUMI", "percent.mito"), nCol = 3)
-
+  
   
   # GenePlot is typically used to visualize gene-gene relationships, but can be used for anything 
   # calculated by the object, i.e. columns in object@meta.data, PC scores etc.
   # Since there is a rare subset of cells with an outlier level of high mitochondrial percentage
   # and also low UMI content, we filter these as well
-    par(mfrow = c(1, 2))
-    GenePlot(object = Seurat_data, gene1 = "nUMI", gene2 = "percent.mito")
-    GenePlot(object = Seurat_data, gene1 = "nUMI", gene2 = "nGene")
+  par(mfrow = c(1, 2))
+  GenePlot(object = Seurat_data, gene1 = "nUMI", gene2 = "percent.mito")
+  GenePlot(object = Seurat_data, gene1 = "nUMI", gene2 = "nGene")
   
   
   # We filter out cells that have unique gene counts over 2,500 or less than 200
   # Note that low.thresholds and high.thresholds are used to define a 'gate'.
   # -Inf and Inf should be used if you don't want a lower or upper threshold.
-    par(mfrow = c(1, 1))
-    
+  par(mfrow = c(1, 1))
+  
   Seurat_data <- FilterCells(object = Seurat_data, subset.names = c("nGene", "percent.mito"), low.thresholds = c(200, -Inf), high.thresholds = c(2500, 0.05))
   
   
   Seurat_data <- NormalizeData(object = Seurat_data, normalization.method = "LogNormalize", scale.factor = 1e4)
-
+  
   Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
-
+  
   
   
   #Seurat_data
-
-
-
+  
+  
+  
   print(length(x = Seurat_data()@var.genes))
   
   Seurat_data <- ScaleData(object = Seurat_data, vars.to.regress = c("nUMI", "percent.mito"))
