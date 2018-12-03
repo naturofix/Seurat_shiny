@@ -12,7 +12,8 @@ library(shiny)
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
   
-  
+  values = reactiveValues(data_list = data_list)
+  values_save = reactiveValues()
   output$debug_ui = renderUI({
     #sysinf <- Sys.info()
     if (!is.null(sysinf)){
@@ -26,11 +27,20 @@ shinyServer(function(input, output) {
   
   output$select_dataset_ui = renderUI({
     datasets = values$data_list
-    selectInput('select_dataset','Select Dataset',datasets,datasets[1])
+    selectInput('select_dataset','Select Dataset',c('_',datasets,datasets[1]))
   })
   observeEvent(input$debug,{
     browser()
   })
+  output$file_stucture_image <- renderImage({
+ 
+    outfile <- 'Seurat_file_Structure.png'
+    list(src = outfile,
+         contentType = 'image/png',
+         width = 300,
+         height = 300,
+         alt = "This is alternate text")
+  },deleteFile = F)
   
   observeEvent(input$unzip,{
     withProgress(message = 'untar',{
@@ -40,8 +50,7 @@ shinyServer(function(input, output) {
     #unzip(input$file$datapath, list = TRUE, exdir = 'data/')
   })
   
-  values = reactiveValues(data_list = data_list)
-  values_save = reactiveValues()
+
   
   values_path = reactive({
     if(!is.null(input$select_dataset)){
@@ -56,7 +65,7 @@ shinyServer(function(input, output) {
           
           if(!is.null(input$remove_select_gene)){
             if(input$remove_select_gene != '_'){
-              values_path = paste0(values_path,'_remove_',input$remove_select_gene)
+              values_path = paste0(values_path,'_remove_',input$remove_select_gene,'_',input$remove_threshold)
             }
           }
         }
@@ -72,11 +81,22 @@ shinyServer(function(input, output) {
       data <- Read10X(data.dir = data_path())
       df = as.data.frame(as.matrix(data))
       dim(df)
-      df = as.data.frame(as.matrix(data))
+      #df = as.data.frame(as.matrix(data))
       df
       })
-    }
-  })
+    }else{
+      if(file.exists(dataset_path())){
+        withProgress(message = paste('readRDS',dataset_path()),{
+          data = readRDS(dataset_path())@data
+        })
+          df = as.data.frame(as.matrix(data))
+          dim(df)
+          df
+        }
+        
+      }
+    })
+#  })
   
 
   output$remove_select_gene_ui = renderUI({
@@ -86,6 +106,12 @@ shinyServer(function(input, output) {
     }
   })
   
+  
+  output$remove_hist_ui = renderUI({
+    if(input$run_reduce_rb == T){
+      plotOutput('remove_hist')
+    }
+  })
   output$remove_hist = renderPlot({
     if(input$run_reduce_rb == T){
       
@@ -128,6 +154,8 @@ shinyServer(function(input, output) {
     if(input$run_reduce_rb == T){
       
       print(paste('Total Number of cells =',dim(data_df())[2],'<br>Remaining number of cells = ',dim(data_reduce())[2]))
+    }else{
+      print(paste('Total Number of cells =',dim(data_df())[2]))
     }
   })
   
@@ -189,7 +217,7 @@ shinyServer(function(input, output) {
           
           if(!is.null(input$remove_select_gene)){
             if(input$remove_select_gene != '_'){
-              dataset_path = paste0(dataset_path,'_remove_',input$remove_select_gene)
+              dataset_path = paste0(dataset_path,'_remove_',input$remove_select_gene,'_',input$remove_threshold)
             }
           }
         }
@@ -284,6 +312,7 @@ shinyServer(function(input, output) {
     print('features_plot')
     withProgress(message = paste('readRDS',dataset_path()),{
       Seurat_data = readRDS(dataset_path())
+      
     })
     withProgress(message = 'AddMetaData',{
       mito.genes <- grep(pattern = "^MT-", x = rownames(x = Seurat_data@data), value = TRUE)
@@ -349,6 +378,7 @@ shinyServer(function(input, output) {
     withProgress(message = 'FindVariableGenes',{
       Seurat_data <- FindVariableGenes(object = Seurat_data, mean.function = ExpMean, dispersion.function = LogVMR, x.low.cutoff = 0.0125, x.high.cutoff = 3, y.cutoff = 0.5)
     })
+    values$Seurat_data_norm = Seurat_data
     
   })
   
@@ -407,13 +437,13 @@ shinyServer(function(input, output) {
     if(is.null(values$Seurat_data_norm)){
       withProgress(message = paste('readRDS',dataset_path()),{
         print(dataset_path())
-        data = readRDS(dataset_path())
+        Seurat_data = readRDS(dataset_path())
       })
     }else{
-      data = values$Seurat_data_norm
+      Seurat_data = values$Seurat_data_norm
     }
     withProgress(message = 'running scaling',{
-      Seurat_data <- ScaleData(object = data, vars.to.regress = c("nUMI"))
+      Seurat_data <- ScaleData(object = Seurat_data, vars.to.regress = c("nUMI"))
       
       if(input$save_rds_rb == T){
         withProgress(message = paste('saveRDS',dataset_path()),{
@@ -427,7 +457,7 @@ shinyServer(function(input, output) {
   # 
   # 
   output$ScaleData_text = renderText({
-    print("Seurat_data <- ScaleData(object = values$Seurat_data_norm, vars.to.regress = c('nUMI', 'percent.mito'))")
+    print("Seurat_data <- ScaleData(object = values$Seurat_data_norm, vars.to.regress = c('nUMI'))")
   })
   
   output$scaling_done_text = renderText({
@@ -446,17 +476,19 @@ shinyServer(function(input, output) {
     print('pca_1')
     
     if(!is.null(values$Seurat_data_scale)){
-      data = values$Seurat_data_scale
+      Seurat_data = values$Seurat_data_scale
     }else{
       withProgress(message = paste('readRDS',dataset_path()),{
         print(dataset_path())
-        data = readRDS(dataset_path())
+        Seurat_data = readRDS(dataset_path())
       })
     }
     
     withProgress(message = 'RunPCA',{
       
-      Seurat_data = RunPCA(object = data, pc.genes = data@var.genes, do.print = TRUE, pcs.print = 1:5, genes.print = 5)
+      Seurat_data = RunPCA(object = Seurat_data, pc.genes = Seurat_data@var.genes, do.print = TRUE, pcs.print = 1:5, genes.print = 5)
+      #Seurat_data = RunPCA(object = data, do.print = TRUE, pcs.print = 1:5, genes.print = 5)
+      
     })
     values$Seurat_data_pca_1 <- Seurat_data
     withProgress(message = paste('saveRDS',dataset_path()),{
@@ -702,7 +734,10 @@ shinyServer(function(input, output) {
                                                  min.pct = input$min.pct, 
                                                  logfc.threshold = input$logfc.threshold)
       #if (os == 'Darwin'){
-      saveRDS(values_save,values_path())
+      print('Done FineAllMarkers')
+      withProgress(message = paste('saveRDS',values_path()),{
+        saveRDS(values_save,values_path())
+      })
       #}
     })
     
@@ -736,12 +771,15 @@ shinyServer(function(input, output) {
       print('load values_save')
       #values_load = readRDS(values_path())
       values_save = reactiveValues()
-      
-      values_load = readRDS(values_path())
-      names(values_load)
-      for(name in names(values_load)){
-        print(name)
-        values_save[[name]] = values_load[[name]]
+      if(file.exists(values_path())){
+        values_load = readRDS(values_path())
+        names(values_load)
+        for(name in names(values_load)){
+          print(name)
+          values_save[[name]] = values_load[[name]]
+        }
+      }else{
+        values_save[[input$select_dataset]] = list()
       }
     }
     

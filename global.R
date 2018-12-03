@@ -1,7 +1,16 @@
+install_packages = F
+if(install_packages == T){
+  install.packages('Seurat')
+  
+  install.packages('dplyr')
+  install.packages('shiny')
+}
+
+
 library(Seurat)
 library(dplyr)
 library(shiny)
-options(shiny.maxRequestSize=3000*1024^2) 
+options(shiny.maxRequestSize=30000*1024^2) 
 
 
 # Load the PBMC dataset
