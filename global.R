@@ -1,3 +1,6 @@
+.libPaths("/usr/lib/R/site-library")
+print(.libPaths())
+
 install_packages = F
 if(install_packages == T){
   install.packages('Seurat')
@@ -10,8 +13,12 @@ if(install_packages == T){
 library(Seurat)
 library(dplyr)
 library(shiny)
+library(shinyFiles)
+library(ggplot2)
 options(shiny.maxRequestSize=30000*1024^2) 
 
+uploaded_features = readRDS('www/saved_features.rds')
+length(uploaded_features)
 
 # Load the PBMC dataset
 sysinf <- Sys.info()
@@ -19,7 +26,7 @@ os <- sysinf['sysname']
 os = 'Darwin'
 #setwd('/srv/shiny-server/sample-apps/Seural_shiny/')
 
-
+root_path = list(data = '/srv/shiny-server/upwork/Seurat/data/190503/')
 data_list = list.files('data/')
 datasets = c('immune_hsa','immune_mmu')
 dataset_list = list('immune_hsa' = 'data/immune_hsa/outs/filtered_gene_bc_matrices_mex/GRCh38/',
